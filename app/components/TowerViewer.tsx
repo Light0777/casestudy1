@@ -46,9 +46,9 @@ export default function TowerViewer() {
       scene.fog = new THREE.Fog(0x9fcdf0, 120, 280);
 
       const camera = new THREE.PerspectiveCamera(44, 1, 0.5, 900);
-      let radius = 122;
-      let theta = 0.7;
-      let phi = 1.0;
+      let radius = 185;
+      let theta = 0.45;
+      let phi = 1.12;
       let wantTheta: number | null = null;
 
       const hemi = new THREE.HemisphereLight(0xd6e9ff, 0x5f7050, 0.85);
@@ -60,55 +60,38 @@ export default function TowerViewer() {
       const moon = new THREE.DirectionalLight(0x7e93cc, 0);
       moon.position.set(-50, 70, -30);
       scene.add(moon);
+      /* night dressing (faded in with the night mix in tick) */
+      const glbMats: import("three").MeshStandardMaterial[] = [];
+      const spotA = new THREE.SpotLight(0xffe7c4, 0, 500, 0.5, 0.7, 2);
+      spotA.position.set(-90, 40, 110);
+      spotA.target.position.set(0, 45, 0);
+      scene.add(spotA, spotA.target);
+      const spotB = new THREE.SpotLight(0xcfe0ff, 0, 500, 0.5, 0.7, 2);
+      spotB.position.set(90, 55, 90);
+      spotB.target.position.set(0, 60, 0);
+      scene.add(spotB, spotB.target);
+      const podiumGlow = new THREE.PointLight(0xffd9a0, 0, 70, 2);
+      podiumGlow.position.set(0, 8, 14);
+      scene.add(podiumGlow);
+      const starGeo = new THREE.BufferGeometry();
+      const starPos: number[] = [];
+      for (let si = 0; si < 400; si++) {
+        const a = Math.random() * Math.PI * 2;
+        const e = 0.12 + Math.random() * 1.3;
+        const r = 400;
+        starPos.push(r * Math.cos(e) * Math.cos(a), r * Math.sin(e), r * Math.cos(e) * Math.sin(a));
+      }
+      starGeo.setAttribute("position", new THREE.Float32BufferAttribute(starPos, 3));
+      const starMat = new THREE.PointsMaterial({
+        color: 0xcfd8ff, size: 2, sizeAttenuation: false,
+        transparent: true, opacity: 0, depthWrite: false, fog: false,
+      });
+      scene.add(new THREE.Points(starGeo, starMat));
 
       const world = new THREE.Group();
       scene.add(world);
       const mat = (c: number, extra: Record<string, unknown> = {}) =>
         new THREE.MeshStandardMaterial({ color: c, roughness: 0.85, metalness: 0.05, ...extra });
-
-      function facadeTexture(lit: boolean) {
-        const c = document.createElement("canvas");
-        c.width = c.height = 256;
-        const g = c.getContext("2d")!;
-        g.fillStyle = lit ? "#050505" : "#31465e";
-        g.fillRect(0, 0, 256, 256);
-        for (let y = 0; y < 4; y++) {
-          for (let x = 0; x < 4; x++) {
-            if (lit) {
-              if (Math.random() < 0.5) {
-                g.fillStyle = Math.random() < 0.5 ? "#ffd58a" : "#fff2cf";
-                g.fillRect(x * 64 + 8, y * 64 + 10, 48, 44);
-              }
-            } else {
-              g.fillStyle = "#5d84a6";
-              g.fillRect(x * 64 + 8, y * 64 + 10, 48, 44);
-              g.fillStyle = "#8fb0c9";
-              g.fillRect(x * 64 + 8, y * 64 + 10, 48, 4);
-            }
-          }
-        }
-        const t = new THREE.CanvasTexture(c);
-        t.wrapS = t.wrapT = THREE.RepeatWrapping;
-        t.repeat.set(1, 3);
-        return t;
-      }
-
-      const glassMat = new THREE.MeshStandardMaterial({
-        map: facadeTexture(false),
-        emissiveMap: facadeTexture(true),
-        emissive: 0xffffff,
-        emissiveIntensity: 0,
-        roughness: 0.35,
-        metalness: 0.4,
-      });
-      const sailMat = new THREE.MeshStandardMaterial({
-        color: 0xf4f1ea,
-        roughness: 0.55,
-        metalness: 0.05,
-        side: THREE.DoubleSide,
-        emissive: 0xbfd4ff,
-        emissiveIntensity: 0,
-      });
 
       const concrete = mat(0xcfc9bd);
       const dark = mat(0x2a2c30, { roughness: 0.6 });
@@ -161,8 +144,33 @@ export default function TowerViewer() {
       breakwater.rotation.y = 2.4;
       world.add(breakwater);
       block(220, 2, 46, sand, 0, -0.2, 118);
-      for (let b = 0; b < 6; b++) {
-        block(10, 6 + ((b * 7) % 12), 10, b % 2 ? concrete : sand, -70 + b * 28, 3, 122);
+      /* shoreline houses: plaster walls, pyramid roofs, doors + lit windows */
+      const wallCols = [0xf2ede2, 0xe8dcc8, 0xdfd3bd, 0xf5f0e6];
+      const roofCols = [0xa8573c, 0x8d8d88, 0x7a5c48];
+      const winMat = new THREE.MeshBasicMaterial({ color: 0xffe2b8 });
+      const doorMat = mat(0x4a3f35, { roughness: 0.9 });
+      for (let b = 0; b < 7; b++) {
+        const w = 7 + (b % 3);
+        const d = 6 + ((b + 1) % 3);
+        const h = 3.6 + ((b * 5) % 3) * 0.7;
+        const hx = -72 + b * 24;
+        const hz = 118 + ((b * 13) % 9);
+        const wall = mat(wallCols[b % wallCols.length], { roughness: 0.95 });
+        block(w, h, d, wall, hx, 0.8 + h / 2, hz);
+        const roofH = 2.4 + (b % 2);
+        const roof = new THREE.Mesh(
+          new THREE.ConeGeometry(1, roofH, 4),
+          mat(roofCols[b % roofCols.length], { roughness: 0.9, flatShading: true })
+        );
+        roof.rotation.y = Math.PI / 4;
+        roof.scale.set((w / 2 + 0.9) * 1.414, 1, (d / 2 + 0.9) * 1.414);
+        roof.position.set(hx, 0.8 + h + roofH / 2, hz);
+        roof.castShadow = true;
+        world.add(roof);
+        block(1.4, 2.4, 0.3, doorMat, hx - w / 4, 0.8 + 1.2, hz + d / 2 + 0.05);
+        block(1.2, 1.1, 0.2, winMat, hx + w / 4, 0.8 + h - 1.3, hz + d / 2 + 0.05);
+        block(1.2, 1.1, 0.2, winMat, hx - w / 4 - 0.4, 0.8 + h - 1.3, hz + d / 2 + 0.05);
+        if (b % 2 === 0) block(0.7, 1.8, 0.7, wall, hx + w / 4, 0.8 + h + roofH - 0.6, hz - 1);
       }
       /* causeway to shore + lamps */
       block(7, 1, 64, concrete, 0, 0.6, 64);
@@ -205,201 +213,41 @@ export default function TowerViewer() {
       block(9, 3, 5, mat(0x9fc4e0, { transparent: true, opacity: 0.55 }), 0, 4.5, 8);
       block(10, 0.4, 6, concrete, 0, 6.2, 8);
       block(12, 0.3, 5, mat(0x3f8fae, { roughness: 0.2, metalness: 0.2 }), 15, 0.15, 12);
-      /* twin legs splayed in plan: wide at the back base, meeting at the sea apex */
-      function beam(ax: number, ay: number, az: number, bx: number, by: number, bz: number, w: number, d: number, m: import("three").Material) {
-        const a = new THREE.Vector3(ax, ay, az);
-        const b = new THREE.Vector3(bx, by, bz);
-        const dir = b.clone().sub(a);
-        const len = dir.length();
-        const o = new THREE.Mesh(new THREE.BoxGeometry(w, len, d), m);
-        o.position.copy(a).addScaledVector(dir, 0.5);
-        o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-        o.castShadow = true;
-        o.receiveShadow = true;
-        world.add(o);
-        return o;
-      }
-      function strut(ax: number, ay: number, az: number, bx: number, by: number, bz: number, r: number, m: import("three").Material) {
-        const a = new THREE.Vector3(ax, ay, az);
-        const b = new THREE.Vector3(bx, by, bz);
-        const dir = b.clone().sub(a);
-        const len = dir.length();
-        const o = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 8), m);
-        o.position.copy(a).addScaledVector(dir, 0.5);
-        o.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-        o.castShadow = true;
-        world.add(o);
-        return o;
-      }
-      for (const s of [-1, 1] as const) {
-        const a = new THREE.Vector3(11 * s, 3, -7);
-        const b = new THREE.Vector3(0, 58, 5);
-        const dir = b.clone().sub(a);
-        const len = dir.length();
-        const g = new THREE.Group();
-        g.position.copy(a).addScaledVector(dir, 0.5);
-        g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
-        world.add(g);
-        const core = new THREE.Mesh(new THREE.BoxGeometry(5.5, len, 8), glassMat);
-        core.castShadow = true;
-        core.receiveShadow = true;
-        g.add(core);
-        for (let bi = 0; bi < 7; bi++) {
-          const bandM = new THREE.Mesh(new THREE.BoxGeometry(6.1, 0.55, 8.6), concrete);
-          bandM.position.y = -len / 2 + 6 + (bi * (len - 12)) / 6;
-          bandM.castShadow = true;
-          g.add(bandM);
-        }
-        for (let di = 0; di < 6; di++) {
-          for (const tilt of [-0.55, 0.55]) {
-            const brace = new THREE.Mesh(new THREE.BoxGeometry(0.28, 9, 1.5), concrete);
-            brace.position.set(s * 2.85, -len / 2 + 10 + di * 7.5, 0);
-            brace.rotation.x = tilt;
-            g.add(brace);
+      /* real building model (step 6: procedural tower removed) */
+      const burjModel = new THREE.Group();
+      burjModel.scale.setScalar(0.05);
+      burjModel.position.set(0, 0.16, 0.85);
+      world.add(burjModel);
+      setProgress(82);
+      try {
+        const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js");
+        const gltf = await new GLTFLoader().loadAsync("/models/18-burj-al-arab-jumeirah.glb");
+        if (dead) return;
+        gltf.scene.traverse((o) => {
+          const mesh = o as unknown as import("three").Mesh;
+          if (mesh.isMesh) {
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+            for (const raw of mats) {
+              const m = raw as unknown as import("three").MeshStandardMaterial;
+              if (!m || !m.color || glbMats.includes(m)) continue;
+              const bc = m.color;
+              const lum = 0.2126 * bc.r + 0.7152 * bc.g + 0.0722 * bc.b;
+              const isGreen = bc.g > bc.r && bc.g > bc.b;
+              m.emissive.set(isGreen ? 0x9fd08a : lum > 0.35 ? 0xffe2b8 : 0x8fb8ff);
+              m.userData.glow = isGreen ? 0.25 : 0.3 + 0.35 * lum;
+              glbMats.push(m);
+            }
           }
-        }
+        });
+        burjModel.add(gltf.scene);
+      } catch (err) {
+        console.warn("building model unavailable", err);
       }
-      /* white edge fins along the outer faces of both legs */
-      beam(-13.5, 3, -7.8, -1.6, 58, 4.4, 1.0, 1.3, concrete);
-      beam(13.5, 3, -7.8, 1.6, 58, 4.4, 1.0, 1.3, concrete);
-      block(8, 1.6, 9, concrete, 0, 58, 5);
-      block(5, 1.6, 6, concrete, 0, 59.4, 4.7);
-      disc(1.3, 1.2, concrete, 0, 60.4, 4.5, 16);
-      /* stacked curved guest-room ribs on the sea face: narrow + step forward as they rise */
-      const slabMat = mat(0xe8e2d4, { roughness: 0.8 });
-      for (let f = 0; f <= 13; f++) {
-        const y = 8 + f * 3.4;
-        const t = (y - 3) / 55;
-        const halfW = 11 * (1 - t) + 2.2;
-        const fz = -7 + 12 * t + 6;
-        const chord = halfW * 2;
-        const R = 20;
-        const len = 2 * Math.asin(Math.min(chord / (2 * R), 0.95));
-        const slab = new THREE.Mesh(
-          new THREE.CylinderGeometry(R, R, 1.5, 20, 1, true, -len / 2, len),
-          slabMat
-        );
-        slab.position.set(0, y, fz - R);
-        slab.castShadow = true;
-        slab.receiveShadow = true;
-        world.add(slab);
-        const band = new THREE.Mesh(
-          new THREE.CylinderGeometry(R + 0.12, R + 0.12, 0.85, 20, 1, true, -len / 2, len),
-          glassMat
-        );
-        band.position.set(0, y + 0.1, fz - R);
-        world.add(band);
-        const lip = new THREE.Mesh(
-          new THREE.CylinderGeometry(R + 0.15, R + 0.15, 0.35, 20, 1, true, -len / 2, len),
-          concrete
-        );
-        lip.position.set(0, y - 0.85, fz - R);
-        world.add(lip);
-      }
-      /* tensioned fabric sail closing the back of the V, with batten ribs */
-      const sail = new THREE.Mesh(
-        new THREE.CylinderGeometry(26, 26, 56, 24, 1, true, Math.PI - 0.45, 0.9),
-        sailMat
-      );
-      sail.position.set(0, 31, 21);
-      sail.castShadow = true;
-      world.add(sail);
-      for (const by of [14, 27, 40, 51]) {
-        const batten = new THREE.Mesh(
-          new THREE.CylinderGeometry(26.25, 26.25, 0.55, 24, 1, true, Math.PI - 0.45, 0.9),
-          concrete
-        );
-        batten.position.set(0, by, 21);
-        world.add(batten);
-      }
-      for (const off of [-0.3, -0.15, 0, 0.15, 0.3]) {
-        const seam = new THREE.Mesh(
-          new THREE.CylinderGeometry(26.2, 26.2, 56, 6, 1, true, Math.PI + off - 0.012, 0.024),
-          concrete
-        );
-        seam.position.set(0, 31, 21);
-        world.add(seam);
-      }
-      /* crown mast leaning back over the fabric, with back-stays */
-      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.75, 34, 10), concrete);
-      mast.position.set(0, 75, 3.4);
-      mast.rotation.x = -0.1;
-      mast.castShadow = true;
-      world.add(mast);
-      for (const [cy, cz] of [[64, 4.5], [72, 3.7], [80, 2.9]] as const) {
-        const collar = new THREE.Mesh(new THREE.TorusGeometry(0.78, 0.13, 8, 20), dark);
-        collar.rotation.x = Math.PI / 2;
-        collar.position.set(0, cy, cz);
-        world.add(collar);
-      }
-      strut(0, 70, 3.9, -5.5, 50, -3, 0.2, concrete);
-      strut(0, 70, 3.9, 5.5, 50, -3, 0.2, concrete);
-      const beacon = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 8), new THREE.MeshBasicMaterial({ color: 0xff3b2f }));
-      beacon.position.set(0, 92.6, 1.7);
-      world.add(beacon);
-      /* sky restaurant capsule hung off the back, on twin struts */
-      const restGlass = new THREE.MeshStandardMaterial({
-        color: 0x9fc4e0, transparent: true, opacity: 0.65,
-        emissive: 0xffe9b0, emissiveIntensity: 0, roughness: 0.2, metalness: 0.3,
-      });
-      disc(4.2, 1.1, concrete, 0, 48.6, -10, 28);
-      const restBand = new THREE.Mesh(new THREE.CylinderGeometry(4.2, 4.2, 2.2, 28, 1, true), restGlass);
-      restBand.position.set(0, 50.2, -10);
-      world.add(restBand);
-      disc(4.2, 0.6, concrete, 0, 51.6, -10, 28);
-      strut(-3.5, 42, -3, -1.6, 48.4, -9.4, 0.3, dark);
-      strut(3.5, 42, -3, 1.6, 48.4, -9.4, 0.3, dark);
-      /* cantilevered helipad off the sea face, with H marking + edge lights */
-      disc(5.5, 0.6, dark, 0, 44, 15.5, 36);
-      const padTop = document.createElement("canvas");
-      padTop.width = padTop.height = 128;
-      const pg = padTop.getContext("2d")!;
-      pg.fillStyle = "#3a4148";
-      pg.fillRect(0, 0, 128, 128);
-      pg.strokeStyle = "#f2f2ef";
-      pg.lineWidth = 5;
-      pg.beginPath();
-      pg.arc(64, 64, 52, 0, Math.PI * 2);
-      pg.stroke();
-      pg.fillStyle = "#f2f2ef";
-      pg.font = "700 64px sans-serif";
-      pg.textAlign = "center";
-      pg.textBaseline = "middle";
-      pg.fillText("H", 64, 68);
-      const padTex = new THREE.CanvasTexture(padTop);
-      const padMark = new THREE.Mesh(
-        new THREE.CircleGeometry(4.7, 36),
-        new THREE.MeshBasicMaterial({ map: padTex })
-      );
-      padMark.rotation.x = -Math.PI / 2;
-      padMark.position.set(0, 44.35, 15.5);
-      world.add(padMark);
-      const rail = new THREE.Mesh(new THREE.TorusGeometry(5.5, 0.1, 8, 44), concrete);
-      rail.rotation.x = Math.PI / 2;
-      rail.position.set(0, 44.8, 15.5);
-      world.add(rail);
-      for (let e = 0; e < 8; e++) {
-        const a = (e / 8) * Math.PI * 2;
-        const dot = new THREE.Mesh(
-          new THREE.SphereGeometry(0.16, 6, 5),
-          new THREE.MeshBasicMaterial({ color: 0x9fe8ff })
-        );
-        dot.position.set(Math.cos(a) * 5.5, 44.9, 15.5 + Math.sin(a) * 5.5);
-        world.add(dot);
-      }
-      strut(-3, 35, 8.5, -2, 43.7, 14.6, 0.35, dark);
-      strut(3, 35, 8.5, 2, 43.7, 14.6, 0.35, dark);
-      strut(0, 34, 8, 0, 43.7, 14.8, 0.4, dark);
-      strut(-4.5, 36, 10, 2.5, 43.7, 14.5, 0.28, dark);
-      strut(4.5, 36, 10, -2.5, 43.7, 14.5, 0.28, dark);
-      /* full-height atrium glass glowing between the legs */
-      const atriumMat = new THREE.MeshStandardMaterial({
-        color: 0x9fc4e0, transparent: true, opacity: 0.55,
-        emissive: 0xffe9b0, emissiveIntensity: 0, roughness: 0.2, metalness: 0.3,
-      });
-      const atrium = new THREE.Mesh(new THREE.BoxGeometry(3.5, 46, 1.6), atriumMat);
-      atrium.position.set(0, 27, 2.5);
-      world.add(atrium);
+      /* procedural sail membrane, hotel core, floor bands + mullions removed (step 6) */
+      /* procedural mast, restaurant + helipad removed (step 6: present in the GLB) */
+      /* superseded by the curved hotel core above */
       /* drifting clouds */
       const clouds: { g: import("three").Group; sp: number }[] = [];
       const cloudMat = mat(0xffffff, { transparent: true, opacity: 0.85, roughness: 1 });
@@ -417,7 +265,7 @@ export default function TowerViewer() {
         clouds.push({ g, sp: 0.04 + Math.random() * 0.05 });
       }
 
-      setProgress(74);
+      setProgress(92);
 
       function place() {
         if (!renderer) return;
@@ -464,7 +312,7 @@ export default function TowerViewer() {
       }
       api.current = {
         zoom: (d: number) => { radius = Math.min(185, Math.max(60, radius + d)); },
-        reset: () => { radius = 122; theta = 0.7; phi = 1.0; wantTheta = null; },
+        reset: () => { radius = 185; theta = 0.45; phi = 1.12; wantTheta = null; },
         focus,
       };
 
@@ -480,10 +328,11 @@ export default function TowerViewer() {
         sun.intensity = 1.35 * (1 - mix);
         moon.intensity = 0.9 * mix;
         hemi.intensity = 0.85 - mix * 0.45;
-        glassMat.emissiveIntensity = mix * 1.4;
-        sailMat.emissiveIntensity = mix * 0.85;
-        restGlass.emissiveIntensity = mix * 1.1;
-        atriumMat.emissiveIntensity = mix * 0.8;
+        spotA.intensity = mix * 10000;
+        spotB.intensity = mix * 7000;
+        podiumGlow.intensity = mix * 300;
+        starMat.opacity = mix * 0.9;
+        for (const m of glbMats) m.emissiveIntensity = mix * (m.userData.glow as number);
         water.position.y = -0.5 + Math.sin(performance.now() * 0.0006) * 0.12;
         for (const c of clouds) {
           c.g.position.x += c.sp;
@@ -499,10 +348,10 @@ export default function TowerViewer() {
         }
         camera.position.set(
           radius * Math.sin(phi) * Math.sin(theta),
-          radius * Math.cos(phi) + 25,
+          radius * Math.cos(phi) + 30,
           radius * Math.sin(phi) * Math.cos(theta)
         );
-        camera.lookAt(0, 25, 0);
+        camera.lookAt(0, 30, 0);
         renderer.render(scene, camera);
         if (first) {
           first = false;
