@@ -7,7 +7,7 @@ export default function TowerViewer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
-  const [entered, setEntered] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
   const [progress, setProgress] = useState(4);
   const [night, setNight] = useState(false);
   const [spinning, setSpinning] = useState(true);
@@ -20,6 +20,12 @@ export default function TowerViewer() {
 
   const api = useRef<{ zoom: (d: number) => void; reset: () => void; focus: (id: string | null) => void } | null>(null);
   const activeInfo = HOTSPOTS.find((h) => h.id === active) ?? null;
+
+  useEffect(() => {
+    if (!ready) return;
+    const t = setTimeout(() => setDismissed(true), 900);
+    return () => clearTimeout(t);
+  }, [ready]);
 
   useEffect(() => {
     let dead = false;
@@ -50,6 +56,8 @@ export default function TowerViewer() {
       let theta = 0.45;
       let phi = 1.12;
       let wantTheta: number | null = null;
+      let wantRadius: number | null = null;
+      let wantPhi: number | null = null;
 
       const hemi = new THREE.HemisphereLight(0xd6e9ff, 0x5f7050, 0.85);
       scene.add(hemi);
@@ -289,9 +297,11 @@ export default function TowerViewer() {
         phi = Math.min(1.35, Math.max(0.55, phi - (e.clientY - py) * 0.004));
         px = e.clientX; py = e.clientY;
         wantTheta = null;
+        wantRadius = null;
+        wantPhi = null;
       };
       const onUp = () => { dragging = false; };
-      const onWheel = (e: WheelEvent) => { e.preventDefault(); radius = Math.min(185, Math.max(60, radius + e.deltaY * 0.06)); };
+      const onWheel = (e: WheelEvent) => { e.preventDefault(); radius = Math.min(185, Math.max(60, radius + e.deltaY * 0.06)); wantRadius = null; };
       canvas.addEventListener("pointerdown", onDown);
       window.addEventListener("pointermove", onMove);
       window.addEventListener("pointerup", onUp);
@@ -304,15 +314,17 @@ export default function TowerViewer() {
       });
 
       function focus(id: string | null) {
-        if (id === "island") wantTheta = 2.6;
-        else if (id === "helipad") { wantTheta = 0.1; radius = Math.min(radius, 88); }
-        else if (id === "mast") wantTheta = 1.2;
-        else if (id === "sail") wantTheta = 0.55;
-        else wantTheta = null;
+        // tuned to the GLB: broad sail faces +z, helipad disc sits high at y~69 on -z,
+        // mast tops out at y~100, island disc r~34 with causeway +z
+        if (id === "sail") { wantTheta = 0.4; wantRadius = 150; wantPhi = 1.12; }
+        else if (id === "helipad") { wantTheta = 2.9; wantRadius = 120; wantPhi = 0.62; }
+        else if (id === "mast") { wantTheta = 1.3; wantRadius = 145; wantPhi = 1.12; }
+        else if (id === "island") { wantTheta = -0.55; wantRadius = 185; wantPhi = 1.12; }
+        else { wantTheta = null; wantRadius = null; wantPhi = null; }
       }
       api.current = {
-        zoom: (d: number) => { radius = Math.min(185, Math.max(60, radius + d)); },
-        reset: () => { radius = 185; theta = 0.45; phi = 1.12; wantTheta = null; },
+        zoom: (d: number) => { radius = Math.min(185, Math.max(60, radius + d)); wantRadius = null; },
+        reset: () => { radius = 185; theta = 0.45; phi = 1.12; wantTheta = null; wantRadius = null; wantPhi = null; },
         focus,
       };
 
@@ -345,6 +357,14 @@ export default function TowerViewer() {
           while (d < -Math.PI) d += Math.PI * 2;
           theta += d * 0.08;
           if (Math.abs(d) < 0.01) wantTheta = null;
+        }
+        if (wantRadius !== null) {
+          radius += (wantRadius - radius) * 0.08;
+          if (Math.abs(wantRadius - radius) < 0.4) wantRadius = null;
+        }
+        if (wantPhi !== null) {
+          phi += (wantPhi - phi) * 0.08;
+          if (Math.abs(wantPhi - phi) < 0.01) wantPhi = null;
         }
         camera.position.set(
           radius * Math.sin(phi) * Math.sin(theta),
@@ -401,7 +421,7 @@ export default function TowerViewer() {
         <button className={night ? "on" : ""} onClick={() => setNight(true)}>☾ Night</button>
         <button onClick={toggleFs}>⛶ Fullscreen</button>
       </div>
-      {activeInfo && entered && (
+      {activeInfo && (
         <div className="info-card" role="status">
           <button aria-label="Close panel" onClick={() => { setActive(null); api.current?.focus(null); }}>×</button>
           <h3>{activeInfo.title}</h3>
@@ -415,8 +435,8 @@ export default function TowerViewer() {
           </button>
         ))}
       </div>
-      {!entered && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 10, display: "grid", placeItems: "center", background: "#f3f1ed", textAlign: "center", padding: 20 }}>
+      {!dismissed && (
+        <div style={{ position: "absolute", inset: 0, zIndex: 10, display: "grid", placeItems: "center", background: "#f3f1ed", textAlign: "center", padding: 20, opacity: ready ? 0 : 1, transition: "opacity .6s", pointerEvents: ready ? "none" : "auto" }}>
           <div>
             <small style={{ letterSpacing: "0.1em", color: "#666666", fontSize: "12px" }}>LOADING ARCHITECTURAL EXPERIENCE</small>
             <code style={{ display: "block", color: "#181011", margin: "14px 0 6px", fontSize: "15px" }}>
@@ -428,13 +448,6 @@ export default function TowerViewer() {
             <small style={{ letterSpacing: "0.1em", color: "#666666", fontSize: "12px" }}>
               {ready ? "MODEL READY" : "INITIALIZING 3D MODEL..."}
             </small>
-            <div>
-              {ready && (
-                <button className="btn" style={{ marginTop: 20 }} onClick={() => setEntered(true)}>
-                  Explore Building
-                </button>
-              )}
-            </div>
           </div>
         </div>
       )}

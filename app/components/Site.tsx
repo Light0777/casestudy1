@@ -6,6 +6,8 @@ import {
   type Project,
 } from "../data";
 import TowerViewer from "./TowerViewer";
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
 
 function useReveal() {
   useEffect(() => {
@@ -108,6 +110,7 @@ export default function Site() {
   const [sent, setSent] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const barRef = useRef<HTMLElement>(null);
+  const expandRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const secs = NAV.map((n) => document.querySelector(n.href)).filter(Boolean) as Element[];
@@ -132,8 +135,7 @@ export default function Site() {
   }, []);
 
   // testimonial autoplay
-  useEffect(() => {
-    let raf = 0;
+  useEffect(() => {    let raf = 0;
     let t0 = performance.now();
     const DUR = 6500;
     const loop = (now: number) => {
@@ -170,6 +172,33 @@ export default function Site() {
     return Object.keys(errs).length === 0;
   }
 
+  // scroll-driven viewer expand (gsap)
+  useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    gsap.registerPlugin(ScrollTrigger);
+    const shell = expandRef.current;
+    if (!shell) return;
+    const inner = shell.querySelector(".viewer");
+    const ctx = gsap.context(() => {
+      gsap.to(shell, {
+        width: "100%", borderRadius: "0px", ease: "none",
+        scrollTrigger: { trigger: shell, start: "top 95%", end: "+=120%", scrub: 0.5 },
+      });
+      if (inner) {
+        gsap.to(inner, {
+          height: "92vh", ease: "none",
+          scrollTrigger: { trigger: shell, start: "top 95%", end: "+=120%", scrub: 0.5 },
+        });
+      }
+    });
+    const onLoad = () => ScrollTrigger.refresh();
+    window.addEventListener("load", onLoad);
+    return () => {
+      ctx.revert();
+      window.removeEventListener("load", onLoad);
+    };
+  }, []);
+
   const visible = PROJECTS.filter((p) => filter === "ALL" || p.category.toUpperCase() === filter);
 
   return (
@@ -187,7 +216,7 @@ export default function Site() {
             ))}
           </ul>
           <a href="#contact" className="btn quote-btn">Get a Quote</a>
-          <button className="burger" aria-label="Toggle menu" aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
+          <button className={`burger${menu ? " open" : ""}`} aria-label={menu ? "Close menu" : "Open menu"} aria-expanded={menu} onClick={() => setMenu((m) => !m)}>
             <i />
           </button>
         </div>
@@ -195,30 +224,25 @@ export default function Site() {
 
       <main>
         <section id="home" className="hero" aria-label="Introduction">
-          <div className="wrap hero-grid">
-            <div>
-              <p className="intro">Building &amp; Engineering Company</p>
-              <h1>Building the future.<br />Engineering excellence.</h1>
-              <p className="lead">We design and build exceptional residential, commercial and industrial spaces through precision engineering, advanced construction technology and uncompromising quality.</p>
-              <div className="hero-cta">
-                <a className="btn" href="#projects">Explore Projects</a>
-                <a className="btn" href="#contact">Start Your Project</a>
-              </div>
+          <div className="wrap hero-center">
+            <p className="intro">Building &amp; Engineering Company</p>
+            <h1>Building with purpose,<br />engineered for tomorrow.</h1>
+            <p className="lead">We create high-quality residential, commercial, and industrial spaces by combining thoughtful design, precision engineering, modern construction methods, and a relentless commitment to quality.</p>
+            <div className="hero-cta">
+              <a className="btn" href="#projects">Explore Projects</a>
+              <a className="btn" href="#contact">Start Your Project</a>
             </div>
-            <a className="hero-art" href="#experience" aria-label="Open the interactive 3D building experience">
-              <svg viewBox="0 0 400 320" role="img" aria-label="Schematic of a tower under construction">
-                <g fill="none" stroke="#181011" strokeWidth="1">
-                  <path d="M40 290h320" />
-                  <rect x="90" y="220" width="220" height="70" />
-                  <rect x="140" y="40" width="120" height="250" />
-                  <path d="M140 80h120M140 120h120M140 160h120M140 200h120M140 240h120M180 40v250M220 40v250" strokeOpacity="0.45" />
-                  <path d="M280 40V16h80M340 16v34" strokeWidth="1.5" />
-                  <circle cx="200" cy="160" r="120" strokeOpacity="0.25" />
-                  <path d="M100 240h200M100 262h200" stroke="#aaaaaa" />
-                </g>
-              </svg>
-              <span className="status-card"><b>On schedule · QA passed</b><span>Live site monitoring across all active projects.</span></span>
-            </a>
+          </div>
+        </section>
+
+        <section id="experience" className="block exp">
+          <div className="wrap">
+            <div className="eyebrow">3D Experience</div>
+            <h2 className="h2 rv">Walk around a sail before it exists</h2>
+            <p className="sub rv">Drag to rotate, scroll or pinch to zoom, and tap a hotspot to explore each zone of this sail-form island hotel — twin masts, tensioned membrane, sky helipad and private island.</p>
+          </div>
+          <div ref={expandRef} className="viewer-shell">
+            <TowerViewer />
           </div>
         </section>
 
@@ -236,12 +260,22 @@ export default function Site() {
               </div>
             </div>
             <div className="about-visual rv">
-              <svg viewBox="0 0 400 300" role="img" aria-label="Schematic facade study">
+              <svg viewBox="0 0 400 300" role="img" aria-label="Abstract floor section diagram">
                 <g fill="none" stroke="#181011" strokeWidth="1">
-                  <rect x="120" y="30" width="160" height="240" />
-                  <path d="M120 70h160M120 110h160M120 150h160M120 190h160M120 230h160M170 30v240M230 30v240" strokeOpacity="0.45" />
-                  <path d="M40 270h320" />
-                  <path d="M60 270V140l40-30v160" strokeOpacity="0.6" />
+                  <path d="M200 20v260" strokeOpacity="0.5" />
+                  <path d="M60 250h280" />
+                  <path d="M80 210h240" />
+                  <path d="M100 170h200" />
+                  <path d="M120 130h160" />
+                  <path d="M140 90h120" />
+                  <path d="M160 50h80" strokeOpacity="0.7" />
+                  <path d="M340 250V50" strokeOpacity="0.6" />
+                  <path d="M334 250h12M334 50h12" strokeOpacity="0.6" />
+                  <circle cx="200" cy="250" r="4" fill="#181011" stroke="none" />
+                </g>
+                <g fontSize="10" fill="#666666" fontFamily="Inter, sans-serif">
+                  <text x="348" y="154">A</text>
+                  <text x="52" y="244">±0</text>
                 </g>
               </svg>
               <div className="iso-card"><b>ISO 9001</b><p style={{ fontSize: "12px", color: "#666666", margin: "4px 0 0" }}>Certified quality management across every site and every stage of delivery.</p></div>
@@ -265,15 +299,6 @@ export default function Site() {
                 </article>
               ))}
             </div>
-          </div>
-        </section>
-
-        <section id="experience" className="block exp">
-          <div className="wrap">
-            <div className="eyebrow">3D Experience</div>
-            <h2 className="h2 rv">Walk around a sail before it exists</h2>
-            <p className="sub rv">Drag to rotate, scroll or pinch to zoom, and tap a hotspot to explore each zone of this sail-form island hotel — twin masts, tensioned membrane, sky helipad and private island.</p>
-            <TowerViewer />
           </div>
         </section>
 

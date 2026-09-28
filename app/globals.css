@@ -63,10 +63,19 @@ section.block { padding: 64px 0; position: relative; }
   border: 1px solid var(--ink); border-radius: 100px;
   background: transparent; color: var(--ink);
   font-size: 15px; font-weight: 400; cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  transition: color 0.3s, border-color 0.3s;
   text-transform: none; letter-spacing: 0;
+  position: relative; overflow: hidden; isolation: isolate;
 }
-.btn:hover { background: var(--ink); color: var(--parchment); }
+.btn::before {
+  content: ""; position: absolute; inset: -1px; z-index: -1;
+  background: var(--ink);
+  transform: translateX(-101%);
+  transition: transform 0.35s ease;
+}
+.btn:hover::before { transform: translateX(0); }
+.btn:hover { color: var(--parchment); }
+@media (prefers-reduced-motion: reduce) { .btn::before { transition: none; } }
 .btn.ghost { background: transparent; }
 .btn.sq { border-radius: 4px; padding: 4px 16px; font-size: 14px; min-height: 36px; }
 .btn.fill { background: var(--ink); color: var(--parchment); }
@@ -81,18 +90,29 @@ section.block { padding: 64px 0; position: relative; }
 .navlinks { display: flex; gap: 12px; list-style: none; margin: 0; padding: 0; }
 .navlinks a { font-size: 14px; color: var(--ink); padding: 6px 2px; border-bottom: 1px solid transparent; }
 .navlinks a:hover, .navlinks a.active { border-color: var(--ink); }
-.burger { display: none; width: 44px; height: 44px; background: none; border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; position: relative; }
-.burger i, .burger::before, .burger::after { content: ""; position: absolute; left: 11px; right: 11px; height: 2px; background: var(--ink); }
+.burger { display: none; width: 44px; height: 44px; background: var(--parchment); border: 1px solid var(--ink); border-radius: 4px; cursor: pointer; position: relative; z-index: 60; }
+.burger i, .burger::before, .burger::after { content: ""; position: absolute; left: 11px; right: 11px; height: 2px; background: var(--ink); transition: top 0.25s, transform 0.25s, opacity 0.25s; }
 .burger::before { top: 14px; } .burger i { top: 21px; } .burger::after { top: 28px; }
+.burger.open::before { top: 21px; transform: rotate(45deg); }
+.burger.open::after { top: 21px; transform: rotate(-45deg); }
+.burger.open i { opacity: 0; }
 .quote-btn { padding: 8px 20px; min-height: 40px; }
 
 /* hero: 45/55 split, mixed-weight two-line headline */
-.hero { padding: 64px 0; position: relative; overflow: hidden; background: var(--parchment); }
+.hero { padding: clamp(80px, 12vh, 140px) 0; position: relative; overflow: hidden; background: var(--parchment); }
 .hero-grid { display: grid; grid-template-columns: 45fr 55fr; gap: 48px; align-items: center; position: relative; }
-.hero .intro { font-size: clamp(24px, 3vw, 30px); color: var(--ash); margin: 0 0 8px; letter-spacing: -0.02em; }
-.hero h1 { font-size: clamp(36px, 4.6vw, 48px); margin-bottom: 20px; }
+.hero-center { text-align: center; max-width: 1080px; margin-inline: auto; display: flex; flex-direction: column; align-items: center; position: relative; }
+.hero-center .hero-cta { justify-content: center; }
+.hero-center .lead { max-width: 54em; }
+.hero .intro { font-family: var(--font-luxe), "Cormorant Garamond", Georgia, serif; font-size: 17px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; color: var(--char); margin: 0 0 20px; }
+.hero h1 { font-size: clamp(32px, 6vw, 80px); font-weight: 1000; margin-bottom: 20px; text-wrap: balance; overflow-wrap: break-word; }
 .hero p.lead { color: var(--char); font-size: 17px; max-width: 30em; margin: 0 0 28px; }
 .hero-cta { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (min-width: 1100px) {
+  #home .wrap { width: min(1400px, 94%); }
+  #home .hero-center { max-width: none; }
+  #home .hero-center .lead { max-width: 65em; }
+}
 
 /* wireframe illustration panel + overlay status card */
 .hero-art { position: relative; display: block; background: var(--paper); border: 1px solid var(--ink); border-radius: 4px; padding: 24px; overflow: hidden; }
@@ -130,6 +150,8 @@ section.block { padding: 64px 0; position: relative; }
 .svc .arr { margin-top: auto; padding-top: 16px; font-size: 15px; }
 
 /* viewer: white wireframe frame around the 3D canvas */
+.viewer-shell { width: min(1200px, 92%); margin: 32px auto 0; overflow: hidden; border-radius: 4px; }
+.viewer-shell .viewer { margin-top: 0; border-radius: 0; }
 .exp { background: var(--parchment); }
 .viewer { position: relative; height: min(76vh, 700px); min-height: 460px; margin-top: 32px; border: 1px solid var(--ink); border-radius: 4px; background: var(--aubergine); overflow: hidden; }
 .viewer canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
